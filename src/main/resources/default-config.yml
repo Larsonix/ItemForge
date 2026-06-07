@@ -1,0 +1,36 @@
+# ItemForge Configuration
+# This file controls plugin behavior. Override files (overrides/*.json) are managed
+# by the plugin — do not edit them manually unless you know what you're doing.
+
+# Value constraints — admins cannot exceed these via the UI
+limits:
+  max_damage: 10000
+  max_health_modifier: 10000
+  max_durability: 100000
+  max_recipe_quantity: 999
+  max_recipe_time: 3600
+
+# Behavior
+behavior:
+  # Revert all item overrides when the plugin is disabled?
+  revert_on_disable: false
+  # Show warning overlay when a multiplicative stat exceeds this value
+  warn_multiplier_threshold: 5.0
+  # Log all changes to itemforge-changes.log?
+  audit_log_enabled: true
+
+# Anonymous usage analytics (HStats — hstats.dev)
+# Reports an anonymous server UUID, player count, OS/Java/CPU info, and which mods
+# are installed. No player names, IPs, or world data are ever sent. This helps the
+# developer understand real usage. You can also opt out at the server level by editing
+# hstats-server-uuid.txt (set enabled=false) in the server directory.
+metrics:
+  enabled: true
+
+# Permission nodes (for reference — actual checks use Hytale's permission system)
+# itemforge.admin           — full access (all below)
+# itemforge.edit.stats      — modify stat modifiers, damage, durability
+# itemforge.edit.recipes    — modify recipe inputs, time, bench requirements
+# itemforge.edit.general    — modify quality, item level, stack size
+# itemforge.command.browse  — open the item browser dashboard
+# itemforge.command.reset   — revert items to default values

@@ -1,0 +1,49 @@
+# =============================================================
+# Line-ending & diff normalization
+#
+# The repository stores LF for every text file. Windows batch
+# scripts are the only exception (they require CRLF). This kills
+# the CRLF/LF churn that otherwise appears whenever a text file
+# is touched on a Windows checkout. Pair with .editorconfig so
+# editors write LF in the first place.
+# =============================================================
+
+# Default: auto-detect text, store/check out as LF.
+* text=auto eol=lf
+
+# --- Scripts that must keep a specific line ending ---
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.sh    text eol=lf
+gradlew text eol=lf
+
+# --- Explicit text types (documentation / source / config) ---
+*.kt    text eol=lf
+*.kts   text eol=lf
+*.java  text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.vue   text eol=lf
+*.py    text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.txt   text eol=lf
+*.properties text eol=lf
+*.gradle text eol=lf
+
+# --- Binary: never normalize, never text-diff ---
+*.jar   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.zip   binary
+*.gz    binary

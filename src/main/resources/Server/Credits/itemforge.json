@@ -1,0 +1,10 @@
+{
+  "Plugin": "me.itemforge:ItemForge",
+  "Website": "https://github.com/Larsonix/ItemForge",
+  "Description": {
+    "RawText": "In-game item and recipe editor for Hytale server admins. Browse, edit, and rebalance any item from any mod live, with no restart. Code by Larsonix, artwork and logo by LadyPaladra."
+  },
+  "License": {
+    "RawText": "ItemForge is licensed under the MIT License."
+  }
+}

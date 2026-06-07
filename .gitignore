@@ -1,0 +1,87 @@
+# =============================================
+# WHITELIST .gitignore
+# Everything is private by default. Only explicitly
+# re-included (!) paths are tracked. Modeled on TrailOfOrbis.
+# =============================================
+
+# Step 1: ignore all files
+*
+
+# Step 2: allow directory traversal so nested includes can match
+!*/
+
+# Step 3: block expensive / private directories from traversal entirely
+.gradle/
+.kotlin/
+.idea/
+.vscode/
+.settings/
+.claude/
+.obsidian/
+build/
+out/
+bin/
+target/
+.index/
+node_modules/
+__pycache__/
+run/
+logs/
+overrides/
+backups/
+# External Vuetale reference source (not our code)
+/Vuetale/
+# Internal-only top-level research
+/UI/
+
+# ==========================================
+# WHITELISTED CONTENT (public)
+# ==========================================
+
+# --- Root project files ---
+!/.gitignore
+!/.gitattributes
+!/.editorconfig
+!/README.md
+!/LICENSE
+!/THIRD-PARTY-NOTICES.md
+!/CHANGELOG.md
+!/build.gradle.kts
+!/settings.gradle.kts
+!/gradle.properties
+!/gradlew
+!/gradlew.bat
+
+# --- Gradle wrapper ---
+!gradle/**
+
+# --- Source (all Kotlin / Java / TypeScript / Vue / resources) ---
+!src/**
+# Re-exclude generated & runtime artifacts inside src/
+src/main/resources/vuetale/itemforge/
+src/ui/node_modules/
+src/ui/dist/
+src/ui/.vite/
+src/ui/tsconfig.tsbuildinfo
+
+# --- Build & dev scripts (incl. build-critical validate-compiled-js.js) ---
+!scripts/**
+
+# --- lib/ (download instructions only; the Vuetale.jar binary stays out) ---
+!lib/**
+lib/*.jar
+# Backups/sidecars of the jar (e.g. Vuetale.jar.bak, Vuetale.jar.node-backup) must never be tracked.
+lib/*.jar.*
+
+# --- Branding (logo + image generators; artwork is reserved — see LICENSE) ---
+!branding/**
+branding/assets/fonts/*.otf
+branding/output/
+branding/tools/
+
+# --- Public documentation ---
+!docs/ARCHITECTURE.md
+!docs/EXTENSIONS.md
+
+# Python bytecode (belt-and-suspenders; covered by * already)
+*.pyc

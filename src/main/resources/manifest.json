@@ -1,0 +1,23 @@
+{
+  "Group": "${group}",
+  "Name": "ItemForge",
+  "Version": "${version}",
+  "Description": "In-game item property editor. Browse, edit, and rebalance any item on your server through a visual dashboard.",
+  "Authors": [
+    {
+      "Name": "Larsonix",
+      "Url": "https://github.com/Larsonix/ItemForge"
+    },
+    {
+      "Name": "LadyPaladra"
+    }
+  ],
+  "ServerVersion": ">=0.5.0 <0.6.0",
+  "Main": "me.itemforge.ItemForgePlugin",
+  "Dependencies": {
+    "Hytale:ItemModule": "*"
+  },
+  "OptionalDependencies": {},
+  "DisabledByDefault": false,
+  "IncludesAssetPack": true
+}

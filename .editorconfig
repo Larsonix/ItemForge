@@ -1,0 +1,28 @@
+# EditorConfig — consistent formatting across editors and IDEs.
+# https://editorconfig.org
+root = true
+
+# Baseline for all files: UTF-8, LF, trimmed, trailing newline.
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Kotlin / Gradle / Java / Python — 4 spaces (matches existing sources).
+[*.{kt,kts,java,py}]
+indent_size = 4
+
+# Vue / TypeScript / JavaScript / JSON / YAML — 2 spaces (Vue + Vite convention).
+[*.{ts,tsx,js,vue,json,yml,yaml}]
+indent_size = 2
+
+# Windows batch scripts require CRLF.
+[*.{bat,cmd}]
+end_of_line = crlf
+
+# Markdown: keep trailing whitespace (it encodes hard line breaks).
+[*.md]
+trim_trailing_whitespace = false
