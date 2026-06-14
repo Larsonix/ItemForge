@@ -25,6 +25,7 @@ import me.itemforge.metadata.ModSourceTracker
 import me.itemforge.metadata.TagCache
 import me.itemforge.provider.ExtensionRegistry
 import me.itemforge.scanner.CodecScanner
+import me.itemforge.util.NativeDependencyLoader
 import me.itemforge.vuetale.VuetaleIntegration
 import me.itemforge.inspect.CrouchTrackingSystem
 import me.itemforge.inspect.InspectModeManager
@@ -180,6 +181,12 @@ class ItemForgePlugin(init: JavaPluginInit) : JavaPlugin(init) {
         Creditor.start(this)
 
         try {
+            // 0. Preload bundled native deps (libatomic.so.1) BEFORE Vuetale boots V8.
+            // Minimal read-only hosts (e.g. PebbleHost) lack libatomic and can't install it;
+            // without this, Javet's V8 native load fails with UnsatisfiedLinkError. Best-effort
+            // and idempotent — no-op on hosts that already have it. See NativeDependencyLoader.
+            NativeDependencyLoader.preloadV8NativeDeps()
+
             // 1. Load configs (YAML + JSON overrides)
             configManager = ConfigManager(dataDirectory, logger)
             configManager.loadAll()

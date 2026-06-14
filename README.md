@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <b>Release 1.0.0</b>
+  <b>Release 1.0.1</b>
 </p>
 
 ---

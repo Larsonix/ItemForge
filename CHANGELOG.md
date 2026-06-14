@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1 - Runs On More Hosts
+
+Small but important one. On some cheap, locked-down server hosts (PebbleHost and the like), ItemForge could fail to start with an error about a missing `libatomic.so.1` file, and there was nothing you could do about it from your side, since those hosts don't let you install system packages or touch the console. This release fixes it : ItemForge now carries that file itself, so it just works, with nothing for you to set up.
+
+---
+
+### The Fix
+- **ItemForge starts on locked-down hosts now.** ItemForge's editor runs on a JavaScript engine (Vuetale) that needs a small system library called libatomic. Most servers already have it, but minimal hosts like PebbleHost don't ship it and won't let you add it, so the mod would crash on boot with `libatomic.so.1: cannot open shared object file`. ItemForge now bundles that file and loads it at startup, only on the hosts that actually need it. If your server was already running ItemForge fine, nothing changes for you.
+
+Thanks to Guaz for reporting it.
+
 ## 1.0.0 - Initial Release
 
 The initial public release of ItemForge. Edit any item's properties live, in game, no JSON and no restarts.

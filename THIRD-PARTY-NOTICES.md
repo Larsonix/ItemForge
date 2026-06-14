@@ -17,6 +17,7 @@ ItemForge source-code license (see [LICENSE](LICENSE)).
 | JetBrains / IntelliJ annotations | Apache-2.0 | github.com/JetBrains/java-annotations |
 | [SnakeYAML](https://bitbucket.org/snakeyaml/snakeyaml) (config parsing; relocated to `me.itemforge.libs.snakeyaml`) | Apache-2.0 | bitbucket.org/snakeyaml/snakeyaml |
 | [Creditor](https://github.com/Lordimass/Creditor) (the bundled `/credits` mod-attribution page) by Lordimass | MIT | github.com/Lordimass/Creditor |
+| libatomic (GCC runtime, `libatomic.so.1`, bundled for Javet's V8 native lib on minimal Linux hosts) | GPL-3.0-or-later WITH GCC-exception-3.1 | gcc.gnu.org |
 
 The Apache-2.0 and BSD-3-Clause components above require their license text and
 attribution to be preserved in redistributions. The corresponding `META-INF`
