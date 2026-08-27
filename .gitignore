@@ -67,6 +67,13 @@ src/ui/tsconfig.tsbuildinfo
 # --- Build & dev scripts (incl. build-critical validate-compiled-js.js) ---
 !scripts/**
 
+# --- Release gates (apifloor / versioncheck / stalecite) ---
+# These decide what compatibility range we are allowed to publish, so they must travel with the
+# repo. This whitelist is easy to forget: everything is ignored by default, so a new tool
+# directory is silently invisible to git and `git status` never mentions it.
+!tools/**
+tools/__pycache__/
+
 # --- lib/ (download instructions only; the Vuetale.jar binary stays out) ---
 !lib/**
 lib/*.jar

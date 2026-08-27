@@ -109,6 +109,13 @@ class LocalDamageSystem : DamageEventSystem() {
      * Reads `ItemForge.<subKey>.<causeId>` off [stack]'s metadata as a Double, or null if absent.
      * Uses the direct (non-cloning) `getFromMetadataOrNull` read — cheap enough for the per-hit path.
      */
+    // Codec.BSON_DOCUMENT is @Deprecated upstream, carrying the engine's own
+    // "TODO: Replace usages with a buffer". Keeping it is a settled decision: the replacement does
+    // not exist yet, and it is still present and still deprecated at 0.6.0-pre.9. Suppressed rather
+    // than left warning so that a clean build has ZERO deprecation warnings — which makes any new
+    // one a lead instead of the fifth line in a list nobody reads. EngineProbe's
+    // `bson-document-codec` check reports the day it actually disappears.
+    @Suppress("DEPRECATION")
     private fun readForgeNumber(stack: ItemStack, subKey: String, causeId: String): Double? {
         val forge = stack.getFromMetadataOrNull(LocalScopeFields.METADATA_KEY, Codec.BSON_DOCUMENT)
             ?: return null

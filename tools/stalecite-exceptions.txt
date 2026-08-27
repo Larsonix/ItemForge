@@ -1,0 +1,14 @@
+# One repository-relative path:line per exception. Every entry needs a human-readable reason.
+# Remove an entry after re-verifying the cited claim and updating its comment to the target SDK.
+
+src/main/kotlin/me/itemforge/local/LocalDamageSystem.kt:25  # unreviewed - carried from 0.5.x, re-verify against 0.6
+src/main/kotlin/me/itemforge/local/LocalStatSystem.kt:27  # unreviewed - carried from 0.5.x, re-verify against 0.6
+src/main/kotlin/me/itemforge/scanner/CodecScanner.kt:333  # unreviewed - carried from 0.5.x, re-verify against 0.6
+src/main/kotlin/me/itemforge/scanner/CodecScanner.kt:623  # unreviewed - carried from 0.5.x, re-verify against 0.6
+src/main/kotlin/me/itemforge/scanner/CodecScanner.kt:1207  # unreviewed - carried from 0.5.x, re-verify against 0.6
+src/main/kotlin/me/itemforge/scanner/CodecScanner.kt:1259  # unreviewed - carried from 0.5.x, re-verify against 0.6
+src/main/kotlin/me/itemforge/core/AssetCommitter.kt:177  # unreviewed - carried from 0.5.x, re-verify against 0.6
+
+# Additional version-pinned engine claims found by the extractor but absent from the brief.
+src/main/kotlin/me/itemforge/scanner/CodecScanner.kt:262  # unreviewed - carried from 0.5.x, re-verify against 0.6
+src/main/kotlin/me/itemforge/vuetale/editor/RecipeSaveHandler.kt:236  # unreviewed - carried from 0.5.x, re-verify against 0.6

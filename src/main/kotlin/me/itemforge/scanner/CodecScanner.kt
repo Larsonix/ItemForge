@@ -330,9 +330,20 @@ class CodecScanner {
      */
     fun discoverAllFields(): List<FieldDefinition> {
         val fields = mutableListOf<FieldDefinition>()
-        // ExtraInfo.getVersion() is hardcoded to Integer.MAX_VALUE in 0.5.3 (verified from the
-        // decompiled source via the Hytale Workshop MCP), so scan()'s `extraInfo.version` is ALWAYS
-        // MAX_VALUE on every thread — passing it here selects fields identically to scan().
+        // `ExtraInfo.getVersion()` returns a constant, so scan()'s `extraInfo.version` is ALWAYS
+        // that same value on every thread — passing it here selects fields identically to scan().
+        //
+        // Re-verified against 0.6.0-pre.9 on 2026-08-27 (Codec/src/main/java/.../ExtraInfo.java):
+        // the engine now names it — `public static final int UNSET_VERSION = Integer.MAX_VALUE`,
+        // and `getVersion()` returns `UNSET_VERSION`. That is a stronger guarantee than the bare
+        // literal this comment used to cite from 0.5.3, so the assumption survives Update 6.
+        //
+        // ⚠ Watch this one anyway. `getLegacyVersion()` is deprecated at 0.6.0-pre.9 with the note
+        // that it "exists so that the migration from global versions to per a builder codec
+        // versions works smoothly". When per-codec versions land, this constant stops being a
+        // constant, and then discoverAllFields() and scan() would silently select DIFFERENT field
+        // revisions — the catalog and the editor disagreeing with no error. EngineProbe's
+        // `extra-info-version` check reports the day that happens.
         val version = Int.MAX_VALUE
 
         for ((key, fieldList) in itemCodec.entries) {
@@ -619,8 +630,17 @@ class CodecScanner {
      * Adds FieldDefinitions for valid map keys NOT present in the BSON document.
      *
      * This ensures admins can ADD new entries (e.g., add Fire resistance to armor
-     * that only has Physical resistance). Valid keys come from the game's asset
-     * registries and enums, hardcoded from decompiled 0.5.0 source.
+     * that only has Physical resistance).
+     *
+     * Valid keys come from [validStatKeys], which reads the running server's LIVE registries:
+     * the `EntityStatType` snapshot for `StatModifiers`, and the `DamageCause` asset registry
+     * (via [me.itemforge.compat.EngineRegistries]) for the four damage-keyed maps. So a stat or
+     * damage type added by any mod is offered here without ItemForge knowing anything about it.
+     * [MAP_VALID_KEYS] is only the fallback for the remaining maps and for the window before
+     * assets finish loading.
+     *
+     * (This used to say the keys were hardcoded from an old decompile. That was true when written
+     * and became false on 2026-08-27, when the damage maps were moved onto the live registry.)
      *
      * Missing entries are created with `currentValue = null, isNotSet = true`
      * and the appropriate default CalculationType for the map type.
@@ -890,7 +910,9 @@ class CodecScanner {
         existingKeys: Set<String>,
         isVarOverridden: Boolean
     ) {
-        val missing = INTERACTION_DAMAGE_TYPES - existingKeys
+        // Live DamageCause registry, so a weapon can be given a modded damage type. Was a frozen
+        // eight-string set copied from the 0.5.0 assets; see EngineRegistries for why that was wrong.
+        val missing = me.itemforge.compat.EngineRegistries.combatDamageCauses() - existingKeys
         if (missing.isEmpty()) return
 
         for (dmgType in missing.sorted()) {
@@ -1046,20 +1068,23 @@ class CodecScanner {
     /**
      * Infers [ValueType] from a codec's childCodec when no BSON value is available.
      *
-     * Uses identity comparison with Hytale's codec singletons (Codec.FLOAT, etc.)
-     * verified from `Codec.java` — these are static final instances.
+     * Delegates to [me.itemforge.compat.CodecTypes], which owns every assumption ItemForge
+     * makes about the shape of Hytale's codec layer. This used to be an inline `when` that
+     * compared `childCodec` by reference identity against `Codec.FLOAT` and friends; that
+     * worked, but its failure mode was total and silent — a single engine change to how field
+     * codecs are constructed would have made every "not set" field vanish from the editor with
+     * no exception and no log line.
      *
-     * Returns null for compound types (BuilderCodec, MapCodec, ArrayCodec) that
-     * cannot be represented as a single editable leaf field.
+     * `CodecTypes` keeps identity as the fast path and falls back to type and class-name
+     * matching, recording which layer answered so the health report can warn before an admin
+     * notices missing fields. It also handles `Codec.NULLABLE_BOOLEAN`, which this `when`
+     * never listed — those fields were invisible in the editor.
+     *
+     * Still returns null for compound types (BuilderCodec, MapCodec, ArrayCodec) that cannot
+     * be represented as a single editable leaf field, so the contract here is unchanged.
      */
-    private fun inferValueType(childCodec: Any): ValueType? = when (childCodec) {
-        HytaleCodec.FLOAT, HytaleCodec.DOUBLE -> ValueType.DOUBLE
-        HytaleCodec.INTEGER, HytaleCodec.LONG, HytaleCodec.SHORT, HytaleCodec.BYTE -> ValueType.INTEGER
-        HytaleCodec.BOOLEAN -> ValueType.BOOLEAN
-        HytaleCodec.STRING -> ValueType.STRING
-        is EnumCodec<*> -> ValueType.STRING  // Enum fields displayed as string dropdowns
-        else -> null  // BuilderCodec, MapCodec, ArrayCodec → compound, skip
-    }
+    private fun inferValueType(childCodec: Any): ValueType? =
+        me.itemforge.compat.CodecTypes.infer(childCodec)
 
     /**
      * Version-aware field selection. Replicates BuilderCodec.findField()
@@ -1079,15 +1104,28 @@ class CodecScanner {
     /**
      * Valid keys for a map sub-field's "addable" entries.
      *
-     * For `StatModifiers` this returns the LIVE stat-type registry (vanilla + every mod's
-     * registered stat) once [initStatTypes] has run — so any item with a StatModifiers-bearing
-     * component can receive any registered stat. Before the registry is ready, or for all other
-     * map fields (DamageResistance etc., which are enum-keyed and NOT mod-extensible), it falls
-     * back to the curated [MAP_VALID_KEYS] set.
+     * Both key spaces are LIVE registries, read from the running server:
+     *
+     * - `StatModifiers` → the [EntityStatType] snapshot taken by [initStatTypes], so any item
+     *   with a StatModifiers-bearing component can receive any registered stat, vanilla or
+     *   modded.
+     * - The damage-keyed maps → [me.itemforge.compat.EngineRegistries.combatDamageCauses],
+     *   which reads the live `DamageCause` asset registry minus the environmental causes.
+     *
+     * An earlier version of this doc claimed the damage maps were "enum-keyed and NOT
+     * mod-extensible" and hardcoded eight strings from the 0.5.0 assets. That was wrong:
+     * `DamageCause` is a `JsonAssetWithMap` asset with its own codec, and this very file
+     * already resolved it live elsewhere. The effect of the mistake was that a mod adding a
+     * damage type produced stats ItemForge could never edit.
+     *
+     * [MAP_VALID_KEYS] remains as the fallback for everything else and for the window before
+     * assets finish loading.
      */
-    private fun validStatKeys(mapKey: String): Set<String>? =
-        if (mapKey == "StatModifiers" && statTypesReady) statTypeRegistry.keys
-        else MAP_VALID_KEYS[mapKey]
+    private fun validStatKeys(mapKey: String): Set<String>? = when {
+        mapKey == "StatModifiers" && statTypesReady -> statTypeRegistry.keys
+        mapKey in DAMAGE_CAUSE_KEYED_MAPS -> me.itemforge.compat.EngineRegistries.combatDamageCauses()
+        else -> MAP_VALID_KEYS[mapKey]
+    }
 
     /**
      * Source mod for a stat entry, or null for vanilla / non-stat map fields.
@@ -1199,12 +1237,31 @@ class CodecScanner {
         )
 
         /**
-         * Valid keys for each map field.
+         * Map fields whose keys are `DamageCause` asset ids, and therefore mod-extensible.
          *
-         * Source: decompiled 0.5.0 game assets + DamageCause/EntityStatType/DamageClass.
-         * Excludes environmental damage causes (Command, Drowning, Fall, etc.) and
-         * non-balance stats (GlidingActive, DeployablePreview) that aren't meaningful
-         * for item modification.
+         * These resolve through [me.itemforge.compat.EngineRegistries] rather than
+         * [MAP_VALID_KEYS]. `DamageClassEnhancement` is deliberately NOT here — its keys are
+         * damage *classes* (Light/Charged/Signature), a different and genuinely small space.
+         */
+        private val DAMAGE_CAUSE_KEYED_MAPS = setOf(
+            "DamageResistance", "DamageEnhancement",
+            "KnockbackResistances", "KnockbackEnhancements"
+        )
+
+        /**
+         * FALLBACK valid keys for each map field, used only when a live registry cannot be read.
+         *
+         * These are no longer the primary source. `StatModifiers` resolves from the live
+         * `EntityStatType` snapshot, and the four DamageCause-keyed maps resolve from the live
+         * `DamageCause` registry via [me.itemforge.compat.EngineRegistries]. This map still backs
+         * `DamageClassEnhancement` and `Regenerating`, and covers the window before assets load.
+         *
+         * Verified against the 0.5.4 and 0.6.0-pre.9 `damage_cause` registries on 2026-08-27:
+         * both hold the same 15 causes, and the eight listed here are exactly those 15 minus the
+         * seven environmental ones (Command, Drowning, Environment, Environmental, Fall,
+         * OutOfWorld, Suffocation). Environmental causes stay excluded because an item cannot
+         * meaningfully resist or enhance them; non-balance stats (GlidingActive,
+         * DeployablePreview) are excluded for the same reason.
          */
         private val MAP_VALID_KEYS = mapOf(
             "StatModifiers" to setOf(
@@ -1252,11 +1309,20 @@ class CodecScanner {
         /**
          * Known valid options for non-enum string fields.
          *
-         * These fields use asset-backed codecs (not Java enums), so EnumCodec
-         * doesn't apply. Values extracted from vanilla 0.5.0 game assets.
+         * These fields use asset-backed codecs (not Java enums), so EnumCodec doesn't apply.
+         * `ItemQuality` is a data class (`protocol/ItemQuality.java`), not a Java enum, so there
+         * is no enum to enumerate and the set has to come from the assets themselves.
          *
-         * ItemQuality is a data class (protocol/ItemQuality.java), not a Java enum.
-         * Quality IDs extracted from Assets/Server/Item JSON files.
+         * Re-verified 2026-08-27 by enumerating the container rather than sampling it: all 861
+         * files under `../Assets/` that carry a `Quality` field yield exactly these 11 values and
+         * no others (Common 260, Uncommon 152, Developer 113, Rare 107, Junk 54, Epic 50,
+         * Technical 45, Tool 36, Legendary 32, Debug 31, Template 15). The previously recorded
+         * 0.5.0-era list was correct, not merely old.
+         *
+         * Caveat kept deliberately: `../Assets/` mirrors a shipped build whose exact version is
+         * not pinned, so this is "current vanilla" rather than "verified against 0.5.9". Unlike
+         * StatModifiers and the damage maps, quality is not a live asset registry ItemForge can
+         * read at runtime, so this list cannot self-update.
          */
         private val KNOWN_STRING_OPTIONS = mapOf(
             "Quality" to listOf(
@@ -1274,15 +1340,9 @@ class CodecScanner {
          */
         private val DAMAGE_CLASSES = listOf("Light", "Charged", "Signature")
 
-        /**
-         * Valid damage types for BaseDamage entries.
-         * Same DamageCause set used by DamageResistance/DamageEnhancement
-         * (both map damage type → amount). Allows admins to add damage types
-         * that aren't present on the original weapon.
-         */
-        private val INTERACTION_DAMAGE_TYPES = setOf(
-            "Physical", "Projectile", "Bludgeoning", "Slashing",
-            "Fire", "Ice", "Elemental", "Poison"
-        )
+        // INTERACTION_DAMAGE_TYPES was removed 2026-08-27. It held the same eight hardcoded
+        // DamageCause ids as MAP_VALID_KEYS, and BaseDamage now resolves them from the live
+        // registry via EngineRegistries.combatDamageCauses(). The vanilla fallback lives there,
+        // in one place, rather than being duplicated a fifth time here.
     }
 }

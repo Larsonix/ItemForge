@@ -185,6 +185,12 @@ class InventoryRefresher(
      *
      * @return Number of ItemStacks updated
      */
+    // ItemStack.getMetadata() is @Deprecated upstream, but it is the only accessor that hands back
+    // the whole metadata document to carry across into the replacement stack — dropping it here
+    // would silently wipe every per-item override on a durability refresh. Same reasoning as the
+    // suppression already documented at MetadataStackReader.read(). Suppressed rather than left
+    // warning so a clean build has zero deprecation warnings and any new one stands out.
+    @Suppress("DEPRECATION")
     private fun refreshContainer(
         container: com.hypixel.hytale.server.core.inventory.container.ItemContainer,
         newMaxByItem: Map<String, Double>

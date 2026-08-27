@@ -10,17 +10,30 @@ import com.hypixel.hytale.codec.codecs.simple.StringCodec
  *
  * ── ITEMFORGE PATCH ──────────────────────────────────────────────────────────
  * This class lives in ItemForge's source (package `li.kelp.vuetale.hytale`) and
- * **overrides** the version bundled in `lib/Vuetale.jar`. The build excludes the
- * original `VuetaleEventData*.class` from the shadow jar (see build.gradle.kts) so
- * only this patched copy ships.
+ * **overrides** the version bundled in `lib/Vuetale.jar`.
+ *
+ * How the override actually wins: `lib/Vuetale.jar` DOES still contain its own
+ * `VuetaleEventData.class` and `VuetaleEventData$Companion.class`. Nothing excludes
+ * them. Shadow merges by first-writer-wins, and project output is written before
+ * dependency jars, so our copy lands first and the jar's copy is dropped. That
+ * ordering is undocumented and the failure would be silent, so `verifyShadedJar` in
+ * build.gradle.kts asserts on the built jar that our copy is the one that shipped
+ * (discriminator: stock has no "SlotIndex" string, ours does).
+ *
+ * An earlier version of this comment claimed the build excluded the original class.
+ * It never did — the claim was checked against build.gradle.kts on 2026-08-27 and no
+ * such exclude exists.
  *
  * Why: Hytale's `ItemGrid` reports clicks via a `SlotClicking` event whose payload
  * carries a `SlotIndex` field (which slot was clicked). Stock Vuetale only decodes
  * `RoutingKey` + `@Value`, silently dropping `SlotIndex`, so a `@slot-clicking`
  * handler can fire but never learn which item was clicked.
  *
- * The fix is intentionally surgical — ONLY this class changes; `EventBinding` and
- * `VuetaleUIPage` (still loaded from the jar) are untouched. We decode `SlotIndex`
+ * The decode fix itself is surgical: `EventBinding` is untouched and still comes from
+ * the jar. (`VuetaleUIPage` is NOT — ItemForge overrides that one too, in this same
+ * package, for the freeze/deadlock fixes. An earlier version of this comment said it
+ * was "still loaded from the jar"; that stopped being true and was corrected
+ * 2026-08-27.) We decode `SlotIndex`
  * and surface it through the existing [value] field, which stock
  * `EventBinding.invoke(value)` already forwards to the JS callback. So a Vue
  * `@slot-clicking="(i) => …"` receives the slot index as a string (parse with

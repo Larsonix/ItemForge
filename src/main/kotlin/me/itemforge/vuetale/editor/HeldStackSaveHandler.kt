@@ -187,6 +187,9 @@ class HeldStackSaveHandler(
      * running appliers. An out-of-date UI that sends one is ignored defensively (logged), never
      * written as a dead metadata key.
      */
+    // Codec.BSON_DOCUMENT deprecation: settled, leave as-is. See the note on
+    // LocalDamageSystem.readForgeNumber for why this is suppressed rather than left warning.
+    @Suppress("DEPRECATION")
     fun executeLocalBaseSave(
         playerId: String,
         itemId: String,

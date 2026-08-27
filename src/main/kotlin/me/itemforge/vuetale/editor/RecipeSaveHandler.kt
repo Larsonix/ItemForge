@@ -233,11 +233,24 @@ class RecipeSaveHandler(
         // Takes precedence over the per-index `benches` path — mutually exclusive,
         // exactly like inputsFull/inputs above.
         //
-        // Verified against CraftingRecipe.CODEC (v0.5.3): a BenchRequirement needs
-        // Type (BenchType enum, required) + Id (String, required); Categories and
-        // RequiredTierLevel are optional. The BenchRequirement array has NO non-empty
-        // validator, so an empty array is legal — it removes all bench requirements,
-        // making the recipe uncraftable (CraftingManager.isValidBenchForRecipe).
+        // Re-verified against CraftingRecipe.CODEC at 0.6.0-pre.9 on 2026-08-27: a BenchRequirement
+        // needs Type (BenchType enum, Validators.nonNull) + Id (String, Validators.nonNull);
+        // Categories and RequiredTierLevel are optional. The BenchRequirement array still has NO
+        // nonEmptyArray validator, so an empty array is legal — it removes all bench requirements,
+        // making the recipe uncraftable (CraftingManager.isValidBenchForRecipe). Every claim the
+        // old 0.5.3 note made still holds.
+        //
+        // ⚠ KNOWN GAP, found during the Update-6 audit. 0.6.0-pre.9 adds a fifth optional key,
+        // `RequiredAugmentTags` (Codec.STRING_ARRAY), which ItemForge does not know about. Because
+        // this path REPLACES the whole BenchRequirement array from UI values rather than merging
+        // into the original, editing benches on a recipe that uses that key would silently drop it.
+        //
+        // Not fixed here, deliberately: no vanilla asset in the current mirror uses it (grepped all
+        // of ../Assets/, 0 hits), so there is nothing to lose today, and the correct fix is to
+        // preserve unknown keys by merging against the original bench document rather than
+        // enumerating the ones we know — a real change to a save path, which should not ship
+        // without a play-test. Revisit when there is a server to test on; a merge-based rewrite
+        // would also make this forward-compatible with any future bench field automatically.
         @Suppress("UNCHECKED_CAST")
         val benchesFull = changes["benchesFull"] as? List<Map<String, Any>>
         if (benchesFull != null) {

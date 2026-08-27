@@ -1,3 +1,8 @@
+// NOTE: this import is required, not stylistic. This script declares a `java { }` extension
+// block below, so the identifier `java` resolves to Gradle's JavaPluginExtension — which means a
+// fully-qualified `java.util.zip.ZipFile` fails to compile with "Unresolved reference 'util'".
+import java.util.zip.ZipFile
+
 plugins {
     kotlin("jvm") version "2.3.0"
     id("com.gradleup.shadow") version "9.3.1"
@@ -26,6 +31,11 @@ repositories {
 
 val hytaleServerVersion = property("hytaleServerVersion") as String
 val snakeyamlVersion = property("snakeyamlVersion") as String
+
+// Captured here at configuration time on purpose. Reading it with property(...) inside the
+// filesMatching { } closure resolves against the TASK, not the project, and fails with
+// "Could not get unknown property 'serverVersionRange' for task ':processResources'".
+val serverVersionRange = property("serverVersionRange") as String
 
 // ── Creditor (bundled library, MIT — by Lordimass) ───────────────────────
 // Creditor provides the /credits page that attributes mod creators. We embed
@@ -108,6 +118,95 @@ tasks.shadowJar {
     mergeServiceFiles()
 }
 
+// ── Shaded-override verification ─────────────────────────────────────────
+// ItemForge ships its own copies of two classes that ALSO exist inside lib/Vuetale.jar:
+//   li/kelp/vuetale/hytale/VuetaleUIPage.class     — carries every freeze/deadlock fix
+//   li/kelp/vuetale/hytale/VuetaleEventData.class  — decodes SlotIndex for @slot-clicking
+// Shadow resolves that collision by first-writer-wins, which puts project output ahead of
+// dependency jars. Verified 2026-08-27: our copies do win today. But the ordering is
+// undocumented and the failure is silent — if it ever flips, the build stays green and
+// ItemForge quietly reverts to stock Vuetale, losing the phantom-binding purge, the
+// ACK-sendUpdate removal, and the slot index on every grid click.
+//
+// We assert on the OUTPUT rather than restructuring the merge. Stripping the stock copies out
+// of Vuetale.jar first would mean repackaging a 26 MB jar that declares `Multi-Release: true`
+// and holds 11 META-INF/versions entries — and that attribute does propagate to the final jar.
+// That is a real risk taken to fix a hypothetical one. Reading the produced jar is ground truth
+// and costs nothing.
+//
+// Discriminators measured against both jars on 2026-08-27:
+//   VuetaleEventData — stock 4,615 B has no "SlotIndex";     ours 5,664 B does
+//   VuetaleUIPage    — stock 22,496 B has no "tooltip-clear"; ours 30,580 B does
+// The other upstream log strings ("phantom event binding", "may be stale after hot-reload") are
+// NOT discriminators: our class is a fork of Vuetale's and inherits them.
+val verifyShadedJar = tasks.register("verifyShadedJar") {
+    description = "Asserts the shaded jar kept ItemForge's Vuetale overrides and both lib/Vuetale.jar patches."
+    group = "verification"
+
+    val jarProvider = tasks.shadowJar.flatMap { it.archiveFile }
+    inputs.file(jarProvider)
+
+    doLast {
+        val jar = jarProvider.get().asFile
+        val problems = mutableListOf<String>()
+
+        ZipFile(jar).use { zf ->
+            // ISO-8859-1 maps bytes 1:1, so class bytes survive decoding intact. The markers are
+            // ASCII; UTF-8 would risk mangling surrounding bytes into replacement characters.
+            fun bodyOf(entry: String): String? = zf.getEntry(entry)?.let {
+                zf.getInputStream(it).readBytes().toString(Charsets.ISO_8859_1)
+            }
+
+            fun mustContain(entry: String, marker: String, consequence: String) {
+                val body = bodyOf(entry)
+                when {
+                    body == null -> problems += "$entry is MISSING from the jar"
+                    !body.contains(marker) -> problems += "$entry lacks \"$marker\" — $consequence"
+                }
+            }
+
+            mustContain(
+                "li/kelp/vuetale/hytale/VuetaleEventData.class", "SlotIndex",
+                "stock Vuetale won the shade, so @slot-clicking fires with no slot index"
+            )
+            mustContain(
+                "li/kelp/vuetale/hytale/VuetaleUIPage.class", "tooltip-clear",
+                "stock Vuetale won the shade, so the freeze/deadlock fixes are gone"
+            )
+            // Patch 2 from lib/README.md: without the idempotency guard the JVM dies with a
+            // native EXCEPTION_ACCESS_VIOLATION on roughly the third editor open.
+            mustContain(
+                "li/kelp/vuetale/javascript/JSEngine.class", "preloadedComponents",
+                "lib/Vuetale.jar is missing the preloadComponent idempotency guard"
+            )
+
+            // Patch 1 from lib/README.md: the V8 native splice. A stock download re-introduces the
+            // Node natives and roughly doubles the shipped jar.
+            val natives = zf.entries().asSequence()
+                .map { it.name }
+                .filter { it.matches(Regex(".*javet.*\\.(so|dll)$")) }
+                .toList()
+            if (natives.none { it.contains("javet-v8") }) {
+                problems += "no javet-v8 native present — lib/Vuetale.jar is not the V8-spliced build"
+            }
+            natives.filter { it.contains("javet-node") }.forEach {
+                problems += "javet-node native present ($it) — a stock Vuetale was used"
+            }
+        }
+
+        if (problems.isNotEmpty()) {
+            throw GradleException(buildString {
+                appendLine("Shaded-jar verification FAILED (${problems.size} problem(s)) in ${jar.name}:")
+                problems.forEach { appendLine("  - $it") }
+                appendLine()
+                appendLine("Most likely cause: lib/Vuetale.jar was replaced with a stock download.")
+                appendLine("lib/README.md explains what the patched jar contains and how to check it.")
+            })
+        }
+        logger.lifecycle("verifyShadedJar: Vuetale overrides + both lib/Vuetale.jar patches present in ${jar.name}")
+    }
+}
+
 // Make shadowJar the default JAR output
 tasks.jar {
     enabled = false
@@ -115,6 +214,7 @@ tasks.jar {
 
 tasks.build {
     dependsOn(tasks.shadowJar)
+    dependsOn(verifyShadedJar)
 }
 
 tasks.test {
@@ -152,15 +252,18 @@ tasks.processResources {
     dependsOn(npmBuild)
 
     // Expand placeholders in manifest.json.
-    // NOTE: "ServerVersion" is NOT derived from hytaleServerVersion (the compile-time SDK
-    // dependency). It is a SemverRange compatibility expression (">=0.5.0 <0.6.0") declared
-    // literally in the manifest. Coupling the two was a latent bug: the loader parses
-    // ServerVersion via SemverRange.fromString, which rejects a bare patch version like
-    // "0.5.3" (bare ranges only parse when patch == 0). Keep the two concerns separate.
+    //
+    // "ServerVersion" comes from the `serverVersionRange` property in gradle.properties, which is
+    // its single home — see the long comment there. It is still NOT derived from
+    // hytaleServerVersion (the compile-time SDK): coupling the two was a latent bug, because the
+    // loader parses ServerVersion via SemverRange.fromString, which rejects a bare patch version
+    // like "0.5.3" (bare ranges only parse when patch == 0). One is what we compiled against, the
+    // other is what we are measured to run on. Keep the two concerns separate.
     filesMatching("**/manifest.json") {
         expand(
             "version" to project.version.toString(),
-            "group" to project.group.toString()
+            "group" to project.group.toString(),
+            "serverVersionRange" to serverVersionRange
         )
     }
 }

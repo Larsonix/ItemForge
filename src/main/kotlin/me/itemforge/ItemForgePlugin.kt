@@ -37,6 +37,16 @@ import com.creditor.Creditor
 import org.bson.BsonDocument
 
 /**
+ * How many items the boot-time engine probe scans to measure field-discovery yield.
+ *
+ * Kept small on purpose. A full scan is the expensive operation in ItemForge (it is what made
+ * editor-open slow before Phase 12/13), and the probe only needs enough items to prove that
+ * field discovery returns a non-zero number of addable fields. Three is enough to survive one
+ * unusual item — a block-item or a purely cosmetic asset — happening to sit first in the map.
+ */
+private const val ENGINE_PROBE_SAMPLE_SIZE = 3
+
+/**
  * ItemForge — In-game item property editor for Hytale server admins.
  *
  * Discovers all editable fields via BuilderCodec introspection, modifies values
@@ -232,6 +242,44 @@ class ItemForgePlugin(init: JavaPluginInit) : JavaPlugin(init) {
                 modSourceTracker.getAllModNames().size,
                 tagCache.getValuesForKey("Type").size,
                 Item.getAssetMap().assetMap.size
+            )
+
+            // 4c. Engine-shape self-test.
+            //
+            // ItemForge discovers item fields by introspecting Hytale's codecs rather than by
+            // calling documented APIs, so the ways it breaks on a game update are mostly SILENT:
+            // the plugin still loads, the editor still opens, and it simply shows fewer fields
+            // than it should. A compile cannot see that, and neither can an admin.
+            //
+            // The probes below assert each engine-shape assumption on the engine that is actually
+            // running, and log the result before anyone opens the editor. The field-yield sample
+            // is the important one: it scans a few real items and refuses to accept "zero addable
+            // fields" as normal, which is the signature of codec type-inference failing quietly.
+            val engineProbeYield = try {
+                val sample = Item.getAssetMap().assetMap.values
+                    .asSequence()
+                    .take(ENGINE_PROBE_SAMPLE_SIZE)
+                    .toList()
+                var totalFields = 0
+                var notSetFields = 0
+                for (sampled in sample) {
+                    val fields = codecScanner.scan(sampled)
+                    totalFields += fields.size
+                    notSetFields += fields.count { it.isNotSet }
+                }
+                me.itemforge.compat.FieldYield(sample.size, totalFields, notSetFields)
+            } catch (e: Exception) {
+                // A self-test must never be the reason a server fails to boot.
+                logger.atWarning().withCause(e)
+                    .log("ItemForge engine probe: field sampling failed — yield probe skipped")
+                null
+            }
+            me.itemforge.compat.EngineProbe.report(
+                me.itemforge.compat.EngineProbe.runAll(
+                    itemCodec = codecScanner.itemCodec,
+                    recipeCodec = codecScanner.recipeCodec,
+                    yield = engineProbeYield
+                )
             )
 
             // 5. Initialize core engine

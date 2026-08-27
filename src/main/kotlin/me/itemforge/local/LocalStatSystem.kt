@@ -101,6 +101,9 @@ class LocalStatSystem : EntityTickingSystem<EntityStore>(), EntityStatsSystems.S
     }
 
     /** Adds a stack's `ItemForge.stat.<statId>` bonuses into [totals]. */
+    // Codec.BSON_DOCUMENT deprecation: settled, leave as-is. See the note on
+    // LocalDamageSystem.readForgeNumber for why this is suppressed rather than left warning.
+    @Suppress("DEPRECATION")
     private fun accumulateStatBonuses(stack: ItemStack, totals: HashMap<String, Double>) {
         val forge = stack.getFromMetadataOrNull(LocalScopeFields.METADATA_KEY, Codec.BSON_DOCUMENT) ?: return
         val stat = forge.get(LocalScopeFields.STAT_SUBKEY)?.takeIf { it.isDocument }?.asDocument() ?: return

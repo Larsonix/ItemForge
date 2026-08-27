@@ -12,7 +12,8 @@
       "Name": "LadyPaladra"
     }
   ],
-  "ServerVersion": ">=0.5.0 <0.6.0",
+  "Website": "https://www.curseforge.com/hytale/mods/itemforge",
+  "ServerVersion": "${serverVersionRange}",
   "Main": "me.itemforge.ItemForgePlugin",
   "Dependencies": {
     "Hytale:ItemModule": "*"
